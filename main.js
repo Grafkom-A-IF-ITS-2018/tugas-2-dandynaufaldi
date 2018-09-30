@@ -141,6 +141,10 @@ let NVertexPositionBuffer
 let NVertexColorBuffer
 let NVertexIndexBuffer
 
+let xDir = 1.0
+let yDir = 1.0
+let zDir = 1.0
+
 let cubeVertexPositionBuffer
 let cubeVertexColorBuffer
 let cubeVertexIndexBuffer
@@ -330,6 +334,64 @@ function initBuffers() {
     cubeVertexIndexBuffer.numItems = 24
 
 }
+
+function crossProduct(v1, v2){
+    // v1 = [i, j, k]
+    // v2 = [i, j, k]
+    let resI = v1[1] * v2[2] - (v1[2] * v2[1])
+    let resJ = v1[2] * v2[0] - (v1[0] * v2[2])
+    let resK = v1[0] * v2[1] - (v1[1] * v2[0])
+    return [resI, resJ, resK]
+}
+
+function vecSubs(v1, v2){
+    res = []
+    if (v1.length != v2.length)
+        throw "vector have different shape"
+    for (let i = 0; i < v1.length; i++) {
+            res.push(v1[i] - v2[i])    
+    }
+    return res
+}
+
+function vecMul(v1, v2){
+    if (v1.length != v2.length)
+        throw "vector have different shape"
+    let res = []
+    for (let i = 0; i < v1.length; i++) {
+        res.push(v1[i] * v2[i])    
+    }
+    return res
+}
+
+function calcPlaneEq(p1, p2, p3){
+    // create 2 vector that lies on plane
+    let v1 = vecSubs(p1, p2)
+    let v2 = vecSubs(p2, p3)
+
+    // calc norm vec from v1 and v2 cross product as
+    // norm vec perpendicular to plane
+    let normVec = crossProduct(v1, v2)
+
+    // constant for plane equation
+    // dot product from norm vec and any point on plane
+    let point = p1.map(x => -x)
+    let D = vecMul(normVec, point).reduce((a, b) => a + b, 0)
+    
+    return normVec.concat(D)
+}
+
+function calcPointPlaneDist(planeEq, point){
+    // planeEq = Ax + By + Cz + D, represented as [A, B, C, D]
+    // point = [x, y, z]
+    let numerator = Math.abs(planeEq[0]*point[0] +
+                            planeEq[1]*point[1] +
+                            planeEq[2]*point[2] + planeEq[3])
+    let planeEqCoef = planeEq.slice(0, 3)
+    let denominator = Math.sqrt(planeEqCoef.map(x => x*x).reduce((a, b) => a + b, 0))
+    return numerator/denominator
+}
+
 let rN = 0
 
 function drawScene() {
@@ -339,8 +401,10 @@ function drawScene() {
     mat4.identity(mvMatrix)
     mat4.translate(mvMatrix, mvMatrix, [-1.5, 3.0, -60.0])
     mvPushMatrix()
+    mat4.translate(mvMatrix, mvMatrix, [xDir, yDir, zDir])
     mat4.rotate(mvMatrix, mvMatrix, glMatrix.toRadian(rN), [0.0, 1.0, 0.0])
-    //mat4.rotateY(mvMatrix, mvMatrix, glMatrix.toRadian(rTri))
+    
+
     gl.bindBuffer(gl.ARRAY_BUFFER, NVertexPositionBuffer)
     gl.vertexAttribPointer(shaderProgram.vertexPositionAttribute, NVertexPositionBuffer.itemSize, gl.FLOAT, false, 0, 0)
     
@@ -353,10 +417,11 @@ function drawScene() {
     gl.drawElements(gl.TRIANGLES, NVertexIndexBuffer.numItems, gl.UNSIGNED_SHORT, 0)
     mvPopMatrix()
     
-    mat4.translate(mvMatrix, mvMatrix, [0.0, 0.0, -10.0])
+    mat4.identity(mvMatrix)
+    mat4.translate(mvMatrix, mvMatrix, [0.0, 0.0, -70.0])
     mvPushMatrix()
     mat4.rotate(mvMatrix, mvMatrix, glMatrix.toRadian(30), [0.0, 1.0, 0.0])
-    // mat4.rotateX(mvMatrix, mvMatrix, glMatrix.toRadian(rSquare))
+
     gl.bindBuffer(gl.ARRAY_BUFFER, cubeVertexPositionBuffer)
     gl.vertexAttribPointer(shaderProgram.vertexPositionAttribute, cubeVertexPositionBuffer.itemSize, gl.FLOAT, false, 0, 0)
     
@@ -375,6 +440,9 @@ function animate() {
     if (lastTime != 0) {
         let elapsed = timeNow - lastTime
         rN += (90 * elapsed) / 1000.0
+        xDir += (1.0 * elapsed) / 1000.0
+        yDir += (1.0 * elapsed) / 1000.0
+        zDir += (1.0 * elapsed) / 1000.0
     }
     lastTime = timeNow
 }
