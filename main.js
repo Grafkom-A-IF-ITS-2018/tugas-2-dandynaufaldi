@@ -117,7 +117,6 @@ function triDiObj( vertices, verItemSize, verNumItem, colors, colItemSize, colNu
     }
 }
 
-let triDiObjs = []
 //     -2  -1  0   1   2
 //-------------------------
 // 3// 3   5       9   10
@@ -141,6 +140,10 @@ let triDiObjs = []
 let NVertexPositionBuffer
 let NVertexColorBuffer
 let NVertexIndexBuffer
+
+let cubeVertexPositionBuffer
+let cubeVertexColorBuffer
+let cubeVertexIndexBuffer
 function initBuffers() {
     // N Position
     NVertexPositionBuffer = gl.createBuffer()
@@ -281,17 +284,62 @@ function initBuffers() {
     gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(NVertexIndices), gl.STATIC_DRAW)
     NVertexIndexBuffer.itemSize = 1
     NVertexIndexBuffer.numItems = 96
+
+    // Cube skeleton
+    //      H             G
+    // E            F
+    // 
+    // 
+    //      D             C
+    // A            B
+    cubeVertexPositionBuffer = gl.createBuffer()
+    gl.bindBuffer(gl.ARRAY_BUFFER, cubeVertexPositionBuffer)
+    vertices = [
+        -15.0, -15.0, 15.0, // A 0
+        15.0, -15.0, 15.0, // B 1
+        15.0, -15.0, -15.0, // C 2
+        -15.0, -15.0, -15.0, // D 3
+        -15.0, 15.0, 15.0, // E  4
+        15.0, 15.0, 15.0, // F 5
+        15.0, 15.0, -15.0, // G 6
+        -15.0, 15.0, -15.0, // H 7
+    ]
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(vertices), gl.STATIC_DRAW)
+    cubeVertexPositionBuffer.itemSize = 3
+    cubeVertexPositionBuffer.numItems = 8
+
+    cubeVertexColorBuffer = gl.createBuffer()
+    gl.bindBuffer(gl.ARRAY_BUFFER, cubeVertexColorBuffer)
+    colors = []
+    for (let i = 0; i < vertices.length / 3; i++) {
+        colors = colors.concat([1.0, 1.0, 1.0, 1.0])        
+    }
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(colors), gl.STATIC_DRAW)
+    cubeVertexColorBuffer.itemSize = 4
+    cubeVertexColorBuffer.numItems = 8
+
+    cubeVertexIndexBuffer = gl.createBuffer()
+    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, cubeVertexIndexBuffer)
+    let cubeVertexIndices = [
+       0, 1,    1, 2,   2, 3,   3, 0, // AB, BC, CD, DA 
+       4, 5,    5, 6,   6, 7,   4, 7, // EF, FG, GH, EH
+       1, 5,    0, 4,   2, 6,   3, 7, // BF, AE, CG, DH
+    ]
+    gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(cubeVertexIndices), gl.STATIC_DRAW)
+    cubeVertexIndexBuffer.itemSize = 1
+    cubeVertexIndexBuffer.numItems = 24
+
 }
-let rTri = 0
-let rSquare = 0
+let rN = 0
+
 function drawScene() {
     gl.viewport(0, 0, gl.viewportWidth, gl.viewportHeight)
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT)
     mat4.perspective(pMatrix, glMatrix.toRadian(45), gl.viewportWidth / gl.viewportHeight, 0.1, 100.0)
     mat4.identity(mvMatrix)
-    mat4.translate(mvMatrix, mvMatrix, [-1.5, 3.0, -20.0])
+    mat4.translate(mvMatrix, mvMatrix, [-1.5, 3.0, -60.0])
     mvPushMatrix()
-    mat4.rotate(mvMatrix, mvMatrix, glMatrix.toRadian(rTri), [0.0, 1.0, 0.0])
+    mat4.rotate(mvMatrix, mvMatrix, glMatrix.toRadian(rN), [0.0, 1.0, 0.0])
     //mat4.rotateY(mvMatrix, mvMatrix, glMatrix.toRadian(rTri))
     gl.bindBuffer(gl.ARRAY_BUFFER, NVertexPositionBuffer)
     gl.vertexAttribPointer(shaderProgram.vertexPositionAttribute, NVertexPositionBuffer.itemSize, gl.FLOAT, false, 0, 0)
@@ -304,25 +352,29 @@ function drawScene() {
     setMatrixUniforms()
     gl.drawElements(gl.TRIANGLES, NVertexIndexBuffer.numItems, gl.UNSIGNED_SHORT, 0)
     mvPopMatrix()
-    // mat4.translate(mvMatrix, mvMatrix, [0.0, -7.0, 0.0])
-    // mvPushMatrix()
-    // mat4.rotate(mvMatrix, mvMatrix, glMatrix.toRadian(rSquare), [0.0, 1.0, 0.0])
-    // //mat4.rotateX(mvMatrix, mvMatrix, glMatrix.toRadian(rSquare))
-    // gl.bindBuffer(gl.ARRAY_BUFFER, squareVertexPositionBuffer)
-    // gl.vertexAttribPointer(shaderProgram.vertexPositionAttribute, squareVertexPositionBuffer.itemSize, gl.FLOAT, false, 0, 0)
-    // gl.bindBuffer(gl.ARRAY_BUFFER, squareVertexColorBuffer)
-    // gl.vertexAttribPointer(shaderProgram.vertexColorAttribute, squareVertexColorBuffer.itemSize, gl.FLOAT, false, 0, 0)
-    // setMatrixUniforms()
-    // gl.drawArrays(gl.TRIANGLE_STRIP, 0, squareVertexPositionBuffer.numItems)
-    // mvPopMatrix()
+    
+    mat4.translate(mvMatrix, mvMatrix, [0.0, 0.0, -10.0])
+    mvPushMatrix()
+    mat4.rotate(mvMatrix, mvMatrix, glMatrix.toRadian(30), [0.0, 1.0, 0.0])
+    // mat4.rotateX(mvMatrix, mvMatrix, glMatrix.toRadian(rSquare))
+    gl.bindBuffer(gl.ARRAY_BUFFER, cubeVertexPositionBuffer)
+    gl.vertexAttribPointer(shaderProgram.vertexPositionAttribute, cubeVertexPositionBuffer.itemSize, gl.FLOAT, false, 0, 0)
+    
+    gl.bindBuffer(gl.ARRAY_BUFFER, cubeVertexColorBuffer)
+    gl.vertexAttribPointer(shaderProgram.vertexColorAttribute, cubeVertexColorBuffer.itemSize, gl.FLOAT, false, 0, 0)
+    
+    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, cubeVertexIndexBuffer)
+
+    setMatrixUniforms()
+    gl.drawElements(gl.LINES, cubeVertexIndexBuffer.numItems, gl.UNSIGNED_SHORT, 0)
+    mvPopMatrix()
 }
 let lastTime = 0
 function animate() {
     let timeNow = new Date().getTime()
     if (lastTime != 0) {
         let elapsed = timeNow - lastTime
-        rTri += (90 * elapsed) / 1000.0
-        rSquare += (75 * elapsed) / 1000.0
+        rN += (90 * elapsed) / 1000.0
     }
     lastTime = timeNow
 }
