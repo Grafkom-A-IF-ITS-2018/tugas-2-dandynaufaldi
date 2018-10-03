@@ -141,10 +141,6 @@ let NVertexPositionBuffer
 let NVertexColorBuffer
 let NVertexIndexBuffer
 
-let xDir = 1.0
-let yDir = 1.0
-let zDir = 1.0
-
 let cubeVertexPositionBuffer
 let cubeVertexColorBuffer
 let cubeVertexIndexBuffer
@@ -366,8 +362,8 @@ function vecMul(v1, v2){
 
 function calcPlaneEq(p1, p2, p3){
     // create 2 vector that lies on plane
-    let v1 = vecSubs(p1, p2)
-    let v2 = vecSubs(p2, p3)
+    let v1 = vecSubs(p2, p1)
+    let v2 = vecSubs(p3, p1)
 
     // calc norm vec from v1 and v2 cross product as
     // norm vec perpendicular to plane
@@ -377,23 +373,76 @@ function calcPlaneEq(p1, p2, p3){
     // dot product from norm vec and any point on plane
     let point = p1.map(x => -x)
     let D = vecMul(normVec, point).reduce((a, b) => a + b, 0)
-    
+    // console.log(normVec)
     return normVec.concat(D)
+}
+
+function getProjectedPos(point, projectMat){
+    // point {[x, y, z]} initial position
+    // projectMat {mat4} 4x4 projection matrix
+    let x, y, z 
+    x = point[0]*projectMat[0] + point[1]*projectMat[4] + point[2]*projectMat[8] + 1.0*projectMat[12]
+    y = point[0]*projectMat[1] + point[1]*projectMat[5] + point[2]*projectMat[9] + 1.0*projectMat[13]
+    z = point[0]*projectMat[2] + point[1]*projectMat[6] + point[2]*projectMat[10] + 1.0*projectMat[14]
+    return [x, y, z]
 }
 
 function calcPointPlaneDist(planeEq, point){
     // planeEq = Ax + By + Cz + D, represented as [A, B, C, D]
     // point = [x, y, z]
-    let numerator = Math.abs(planeEq[0]*point[0] +
-                            planeEq[1]*point[1] +
-                            planeEq[2]*point[2] + planeEq[3])
+    let p = point.slice(0,3)
+    let numerator = Math.abs(planeEq[0]*p[0] +
+                            planeEq[1]*p[1] +
+                            planeEq[2]*p[2] + planeEq[3])
     let planeEqCoef = planeEq.slice(0, 3)
     let denominator = Math.sqrt(planeEqCoef.map(x => x*x).reduce((a, b) => a + b, 0))
     return numerator/denominator
 }
 
 let rN = 0
+let NRotMatrix = mat4.create()
+let NTransMatrix = mat4.create()
 
+let NStartPos = [
+    [-2.0, 3.0, 0.0],   //3
+    [2.0, 3.0, 0.0],    //10
+    [2.0, -3.0, 0.0],   //8
+    [-2.0, -3.0, 0.0],   //2 
+    [-2.0, 3.0, -1.0],   //3
+    [2.0, 3.0, -1.0],    //10
+    [2.0, -3.0, -1.0],   //8
+    [-2.0, -3.0, -1.0],   //2 
+]
+
+let cubeStartPos = [
+    [-15.0, -15.0, 15.0], // A 0
+    [15.0, -15.0, 15.0], // B 1
+    [15.0, -15.0, -15.0], // C 2
+    [-15.0, -15.0, -15.0], // D 3
+    [-15.0, 15.0, 15.0], // E  4
+    [15.0, 15.0, 15.0], // F 5
+    [15.0, 15.0, -15.0], // G 6
+    [-15.0, 15.0, -15.0], // H 7
+]
+let THRESHOLD = 0.1
+let persRot = mat4.create()
+let nRot = Math.random() < 0.5 ? 1.0 : -1.0
+let xDir = Math.random() < 0.5 ? 1.0 : -1.0
+let yDir = Math.random() < 0.5 ? 1.0 : -1.0
+let zDir = Math.random() < 0.5 ? 1.0 : -1.0
+let xMove = 0.5
+let yMove = 0.5
+let zMove = 0.5
+let z
+let planeEq = {
+    top : undefined,
+    bottom : undefined,
+    front : undefined,
+    back : undefined,
+    right : undefined,
+    left : undefined,
+}
+let idx = 1
 function drawScene() {
     gl.viewport(0, 0, gl.viewportWidth, gl.viewportHeight)
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT)
@@ -401,10 +450,15 @@ function drawScene() {
     mat4.identity(mvMatrix)
     mat4.translate(mvMatrix, mvMatrix, [-1.5, 3.0, -60.0])
     mvPushMatrix()
-    mat4.translate(mvMatrix, mvMatrix, [xDir, yDir, zDir])
+    mat4.translate(mvMatrix, mvMatrix, [xMove, yMove, zMove])
     mat4.rotate(mvMatrix, mvMatrix, glMatrix.toRadian(rN), [0.0, 1.0, 0.0])
     
-
+    let nCurPos = []
+    for (let i = 0; i < NStartPos.length; i++) {
+        let temp = getProjectedPos(NStartPos[i], mvMatrix)
+        nCurPos.push(temp)
+    }
+    
     gl.bindBuffer(gl.ARRAY_BUFFER, NVertexPositionBuffer)
     gl.vertexAttribPointer(shaderProgram.vertexPositionAttribute, NVertexPositionBuffer.itemSize, gl.FLOAT, false, 0, 0)
     
@@ -421,6 +475,27 @@ function drawScene() {
     mat4.translate(mvMatrix, mvMatrix, [0.0, 0.0, -70.0])
     mvPushMatrix()
     mat4.rotate(mvMatrix, mvMatrix, glMatrix.toRadian(30), [0.0, 1.0, 0.0])
+    
+    let cubeCurPos = []
+    for (let i = 0; i < cubeStartPos.length; i++) {
+        let temp = getProjectedPos(cubeStartPos[i], mvMatrix)
+        cubeCurPos.push(temp)
+    }
+    // Cube skeleton
+    //      H             G
+    // E            F
+    // 
+    // 
+    //      D             C
+    // A            B
+    planeEq.top = calcPlaneEq(cubeCurPos[4], cubeCurPos[5], cubeCurPos[6]) // E, F, G
+    planeEq.bottom = calcPlaneEq(cubeCurPos[0], cubeCurPos[1], cubeCurPos[2]) // A, B, C
+    planeEq.right = calcPlaneEq(cubeCurPos[1], cubeCurPos[2], cubeCurPos[5]) // B, C, F
+    planeEq.left = calcPlaneEq(cubeCurPos[0], cubeCurPos[3], cubeCurPos[4]) // A, D, E
+    planeEq.front = calcPlaneEq(cubeCurPos[0], cubeCurPos[1], cubeCurPos[4]) // A, B, E
+    planeEq.back = calcPlaneEq(cubeCurPos[2], cubeCurPos[3], cubeCurPos[6]) // C, D, G
+    
+    checkCollision(nCurPos)
 
     gl.bindBuffer(gl.ARRAY_BUFFER, cubeVertexPositionBuffer)
     gl.vertexAttribPointer(shaderProgram.vertexPositionAttribute, cubeVertexPositionBuffer.itemSize, gl.FLOAT, false, 0, 0)
@@ -434,15 +509,73 @@ function drawScene() {
     gl.drawElements(gl.LINES, cubeVertexIndexBuffer.numItems, gl.UNSIGNED_SHORT, 0)
     mvPopMatrix()
 }
+
+function checkCollision(nPos){
+    // Top
+    for (let i = 0; i < nPos.length; i++) {
+        let dist = calcPointPlaneDist(planeEq.top, nPos[i])
+        if (dist < THRESHOLD && yDir == 1.0){
+            yDir *= -1.0
+            nRot *= -1.0
+            return
+        }        
+    }
+    // Bottom
+    for (let i = 0; i < nPos.length; i++) {
+        let dist = calcPointPlaneDist(planeEq.bottom, nPos[i])
+        if (dist < THRESHOLD && yDir == -1.0){
+            yDir *= -1.0
+            nRot *= -1.0
+            return
+        }        
+    }
+    // Right
+    for (let i = 0; i < nPos.length; i++) {
+        let dist = calcPointPlaneDist(planeEq.right, nPos[i])
+        if (dist < THRESHOLD && xDir == 1.0){
+            xDir *= -1.0
+            nRot *= -1.0
+            return
+        }        
+    }
+    // Left
+    for (let i = 0; i < nPos.length; i++) {
+        let dist = calcPointPlaneDist(planeEq.left, nPos[i])
+        if (dist < THRESHOLD && xDir == -1.0){
+            xDir *= -1.0
+            nRot *= -1.0
+            return
+        }        
+    }
+    // Front
+    for (let i = 0; i < nPos.length; i++) {
+        let dist = calcPointPlaneDist(planeEq.front, nPos[i])
+        if (dist < THRESHOLD && zDir == 1.0){
+            zDir *= -1.0
+            nRot *= -1.0
+            return
+        }        
+    }
+    // Back
+    for (let i = 0; i < nPos.length; i++) {
+        let dist = calcPointPlaneDist(planeEq.back, nPos[i])
+        if (dist < THRESHOLD && zDir == -1.0){
+            zDir *= -1.0
+            nRot *= -1.0
+            return
+        }        
+    }
+}
+
 let lastTime = 0
 function animate() {
     let timeNow = new Date().getTime()
     if (lastTime != 0) {
         let elapsed = timeNow - lastTime
-        rN += (90 * elapsed) / 1000.0
-        xDir += (1.0 * elapsed) / 1000.0
-        yDir += (1.0 * elapsed) / 1000.0
-        zDir += (1.0 * elapsed) / 1000.0
+        rN += (90*nRot * elapsed) / 1000.0
+        xMove += (xDir*3* elapsed) / 1000.0
+        yMove += (yDir *3* elapsed) / 1000.0
+        zMove += (zDir *3* elapsed) / 1000.0
     }
     lastTime = timeNow
 }
