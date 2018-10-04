@@ -424,7 +424,7 @@ let cubeStartPos = [
     [15.0, 15.0, -15.0], // G 6
     [-15.0, 15.0, -15.0], // H 7
 ]
-let THRESHOLD = 0.1
+let THRESHOLD = 0.05
 let persRot = mat4.create()
 let nRot = Math.random() < 0.5 ? 1.0 : -1.0
 let xDir = Math.random() < 0.5 ? 1.0 : -1.0
@@ -433,7 +433,6 @@ let zDir = Math.random() < 0.5 ? 1.0 : -1.0
 let xMove = 0.5
 let yMove = 0.5
 let zMove = 0.5
-let z
 let planeEq = {
     top : undefined,
     bottom : undefined,
@@ -443,15 +442,105 @@ let planeEq = {
     left : undefined,
 }
 let idx = 1
+
+let xRot = 0
+let xSpeed = 0
+let yRot = 0
+let ySpeed = 0
+let z = -5.0
+let currentPressedKeys = {}
+let mouseDown = false 
+let lastMouseX = null 
+let lastMouseY = null 
+let deltaX = null 
+let deltaY = null
+let rotMatrix = mat4.create()
+
+function handleKeyUp(event) {
+    currentPressedKeys[event.keyCode] = false
+}
+function handleKeyDown(event) {
+    currentPressedKeys[event.keyCode] = true
+}
+function handleKeys() {
+    if (currentPressedKeys[87]) {
+        //W
+        z -= 0.5
+        console.log('W')
+    }
+    if (currentPressedKeys[83]) {
+        //S
+        z += 0.5
+        console.log('S')
+    }
+    if (currentPressedKeys[37]) {
+        //kiri
+        ySpeed -= 1
+    }
+    if (currentPressedKeys[39]) {
+        //kanan
+        ySpeed += 1
+    }
+    if (currentPressedKeys[38]) {
+        //atas
+        xSpeed -= 1
+    }
+    if (currentPressedKeys[40]) {
+        //bawah
+        xSpeed += 1
+    }
+}
+
+function handleMouseDown(event) {
+    console.log('mouse down')
+    mouseDown = true 
+    lastMouseX = event.clientX
+    lastMouseY = event.clientY
+}
+
+function handleMouseUp(event) {
+    console.log('mouse up')
+    mouseDown = false
+}
+
+function handleMouseMove(event) {
+    if (!mouseDown) {
+        return
+    }
+
+    let newX = event.clientX
+    let newY = event.clientY
+
+    let deltaX = newX - lastMouseX
+    let newRotMatrix = mat4.create()
+    mat4.identity(newRotMatrix)
+    mat4.rotate(newRotMatrix, newRotMatrix, glMatrix.toRadian(deltaX / 10), [0, 1, 0])
+
+    let deltaY = newY - lastMouseY
+    mat4.rotate(newRotMatrix, newRotMatrix, glMatrix.toRadian(deltaY / 10), [1, 0, 0])
+    mat4.multiply(rotMatrix, rotMatrix, newRotMatrix)
+    lastMouseX = newX
+    lastMouseY = newY
+}
+
 function drawScene() {
     gl.viewport(0, 0, gl.viewportWidth, gl.viewportHeight)
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT)
-    mat4.perspective(pMatrix, glMatrix.toRadian(45), gl.viewportWidth / gl.viewportHeight, 0.1, 100.0)
+    mat4.perspective(pMatrix, glMatrix.toRadian(45), gl.viewportWidth / gl.viewportHeight, 0.1, 1000.0)
     mat4.identity(mvMatrix)
-    mat4.translate(mvMatrix, mvMatrix, [-1.5, 3.0, -60.0])
+
+    mat4.translate(mvMatrix, mvMatrix, [0.0, 0.0, -60.0 + z])
+
+    mat4.rotate(mvMatrix, mvMatrix, glMatrix.toRadian(yRot), [0, 1, 0])
+    mat4.rotate(mvMatrix, mvMatrix, glMatrix.toRadian(xRot), [1, 0, 0])
+    mat4.multiply(mvMatrix, mvMatrix, rotMatrix)
     mvPushMatrix()
+    
     mat4.translate(mvMatrix, mvMatrix, [xMove, yMove, zMove])
     mat4.rotate(mvMatrix, mvMatrix, glMatrix.toRadian(rN), [0.0, 1.0, 0.0])
+    // mat4.rotate(mvMatrix, mvMatrix, glMatrix.toRadian(xRot), [1, 0, 0])
+    // mat4.rotate(mvMatrix, mvMatrix, glMatrix.toRadian(yRot), [0, 1, 0])
+    // mat4.multiply(mvMatrix, mvMatrix, rotMatrix)
     
     let nCurPos = []
     for (let i = 0; i < NStartPos.length; i++) {
@@ -471,11 +560,12 @@ function drawScene() {
     gl.drawElements(gl.TRIANGLES, NVertexIndexBuffer.numItems, gl.UNSIGNED_SHORT, 0)
     mvPopMatrix()
     
-    mat4.identity(mvMatrix)
-    mat4.translate(mvMatrix, mvMatrix, [0.0, 0.0, -70.0])
     mvPushMatrix()
-    mat4.rotate(mvMatrix, mvMatrix, glMatrix.toRadian(30), [0.0, 1.0, 0.0])
-    
+    //mat4.translate(mvMatrix, mvMatrix, [0.0, 0.0, 7.5])
+    // mat4.rotate(mvMatrix, mvMatrix, glMatrix.toRadian(30), [0.0, 1.0, 0.0])
+    // mat4.rotate(mvMatrix, mvMatrix, glMatrix.toRadian(xRot), [1, 0, 0])
+    // mat4.rotate(mvMatrix, mvMatrix, glMatrix.toRadian(yRot), [0, 1, 0])
+    // mat4.multiply(mvMatrix, mvMatrix, rotMatrix)
     let cubeCurPos = []
     for (let i = 0; i < cubeStartPos.length; i++) {
         let temp = getProjectedPos(cubeStartPos[i], mvMatrix)
@@ -494,7 +584,7 @@ function drawScene() {
     planeEq.left = calcPlaneEq(cubeCurPos[0], cubeCurPos[3], cubeCurPos[4]) // A, D, E
     planeEq.front = calcPlaneEq(cubeCurPos[0], cubeCurPos[1], cubeCurPos[4]) // A, B, E
     planeEq.back = calcPlaneEq(cubeCurPos[2], cubeCurPos[3], cubeCurPos[6]) // C, D, G
-    
+    // console.log(planeEq)
     checkCollision(nCurPos)
 
     gl.bindBuffer(gl.ARRAY_BUFFER, cubeVertexPositionBuffer)
@@ -510,58 +600,82 @@ function drawScene() {
     mvPopMatrix()
 }
 
-function checkCollision(nPos){
+function checkCollision(nCurPos){
     // Top
-    for (let i = 0; i < nPos.length; i++) {
-        let dist = calcPointPlaneDist(planeEq.top, nPos[i])
-        if (dist < THRESHOLD && yDir == 1.0){
+    for (let i = 0; i < nCurPos.length; i++) {
+        let dist = calcPointPlaneDist(planeEq.top, nCurPos[i])
+        // console.log('Top '+dist)
+        if (dist < THRESHOLD 
+            && yDir == 1.0
+            ){
             yDir *= -1.0
             nRot *= -1.0
+            console.log('Top '+dist)
             return
         }        
     }
     // Bottom
-    for (let i = 0; i < nPos.length; i++) {
-        let dist = calcPointPlaneDist(planeEq.bottom, nPos[i])
-        if (dist < THRESHOLD && yDir == -1.0){
+    for (let i = 0; i < nCurPos.length; i++) {
+        let dist = calcPointPlaneDist(planeEq.bottom, nCurPos[i])
+        // console.log('Bottom '+dist)
+        if (dist < THRESHOLD 
+            && yDir == -1.0
+            ){
             yDir *= -1.0
             nRot *= -1.0
+            console.log('Bottom '+dist)
             return
         }        
     }
     // Right
-    for (let i = 0; i < nPos.length; i++) {
-        let dist = calcPointPlaneDist(planeEq.right, nPos[i])
-        if (dist < THRESHOLD && xDir == 1.0){
+    for (let i = 0; i < nCurPos.length; i++) {
+        let dist = calcPointPlaneDist(planeEq.right, nCurPos[i])
+        // console.log('Right '+dist)
+        if (dist < THRESHOLD
+            && xDir == 1.0
+            ){
             xDir *= -1.0
             nRot *= -1.0
+            console.log('Right '+dist)
             return
         }        
     }
     // Left
-    for (let i = 0; i < nPos.length; i++) {
-        let dist = calcPointPlaneDist(planeEq.left, nPos[i])
-        if (dist < THRESHOLD && xDir == -1.0){
+    for (let i = 0; i < nCurPos.length; i++) {
+        let dist = calcPointPlaneDist(planeEq.left, nCurPos[i])
+        // console.log('Left '+dist)
+        if (dist < THRESHOLD 
+            && xDir == -1.0
+            ){
             xDir *= -1.0
             nRot *= -1.0
+            console.log('Left '+dist)
             return
         }        
     }
     // Front
-    for (let i = 0; i < nPos.length; i++) {
-        let dist = calcPointPlaneDist(planeEq.front, nPos[i])
-        if (dist < THRESHOLD && zDir == 1.0){
+    for (let i = 0; i < nCurPos.length; i++) {
+        let dist = calcPointPlaneDist(planeEq.front, nCurPos[i])
+        // console.log('Front '+dist)
+        if (dist < THRESHOLD 
+            && zDir == 1.0
+            ){
             zDir *= -1.0
             nRot *= -1.0
+            console.log('Front '+dist)
             return
         }        
     }
     // Back
-    for (let i = 0; i < nPos.length; i++) {
-        let dist = calcPointPlaneDist(planeEq.back, nPos[i])
-        if (dist < THRESHOLD && zDir == -1.0){
+    for (let i = 0; i < nCurPos.length; i++) {
+        let dist = calcPointPlaneDist(planeEq.back, nCurPos[i])
+        // console.log('Back '+dist)
+        if (dist < THRESHOLD 
+            && zDir == -1.0
+            ){
             zDir *= -1.0
             nRot *= -1.0
+            console.log('Back '+dist)
             return
         }        
     }
@@ -573,14 +687,17 @@ function animate() {
     if (lastTime != 0) {
         let elapsed = timeNow - lastTime
         rN += (90*nRot * elapsed) / 1000.0
-        xMove += (xDir*3* elapsed) / 1000.0
-        yMove += (yDir *3* elapsed) / 1000.0
-        zMove += (zDir *3* elapsed) / 1000.0
+        xMove += (xDir*5* elapsed) / 1000.0
+        yMove += (yDir *5* elapsed) / 1000.0
+        zMove += (zDir *5* elapsed) / 1000.0
+        xRot += (xSpeed * elapsed) / 1000.0
+        yRot += (ySpeed * elapsed) / 1000.0
     }
     lastTime = timeNow
 }
 function tick() {
     requestAnimationFrame(tick)
+    handleKeys()
     drawScene()
     animate()
 }
@@ -591,5 +708,11 @@ function webGLStart() {
     initBuffers()
     gl.clearColor(0.0, 0.0, 0.0, 1.0)
     gl.enable(gl.DEPTH_TEST)
+    document.onkeydown = handleKeyDown
+    document.onkeyup = handleKeyUp
+
+    canvas.onmousedown = handleMouseDown
+    document.onmouseup = handleMouseUp
+    document.onmousemove = handleMouseMove
     tick()
 }
